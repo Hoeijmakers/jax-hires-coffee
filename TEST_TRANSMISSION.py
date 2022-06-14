@@ -20,7 +20,7 @@ from jax import jit
 
 
 from functools import partial
-    
+
 import pickle
 
 
@@ -49,7 +49,7 @@ import astropy.units as u
 from collections import OrderedDict
 
 
-cpu_cores = 2
+cpu_cores = 12
 numpyro.set_host_device_count(cpu_cores)
 
 
@@ -66,19 +66,19 @@ class species:#Species
   def __init__(self, label, tag):
     self.label = label
     self.tag = tag
-    
+
 
 labels=['Fe','Ti','V']
 tags=[2600,2200,2300]
 S = OrderedDict()#This will hold all my species objects.
 for i in range(len(labels)):
     S[labels[i]] = species(labels[i],tags[i])
-    
-    
+
+
 for i in list(S.keys()):
     S[i].path = ut.check_path(f'opacity/VALD_{S[i].tag}e2/Out_00000_60000_02500_n800.bin',exists=True)
     S[i].kappa = jnp.array(ut.read_binary_kitzmann(S[i].path,double=False))
-    
+
 k_wn = jnp.arange(len(S['Fe'].kappa))*1e-2#Wavenumbers
 k_wl = 1e7/k_wn#Wavelength in nm; common to all the opacity functions.
 
@@ -152,7 +152,7 @@ for i in order_numbers:
     list_of_orders.append(order_i)
     list_of_sigmas.append(np.sqrt(order_i))
 
-if not batch:    
+if not batch:
     oi = 6 #This is the order that's going to be plotted below.
     plt.figure(figsize=(14,5))
     plt.imshow(list_of_orders[oi],aspect='auto')
@@ -218,7 +218,7 @@ for i in range(len(list_of_wls)):
     list_of_orders_cor.append(order_cor)
     list_of_sigmas_cor.append(sigma_cor)
     list_of_wls_cor.append(wl_cor)
-    
+
 
 
 # In[4]:
@@ -243,7 +243,7 @@ for i in range(order_start,np.min([order_end,len(list_of_orders)])):
     list_of_sigmas_oot.append(list_of_sigmas_cor[i][mask==1])
     min_wl = np.min([np.min(list_of_wls_cor[i]),min_wl])
     max_wl = np.max([np.max(list_of_wls_cor[i]),max_wl])
-        
+
 list_of_wld = copy.deepcopy(list_of_wls_oot)
 
 if not batch:
@@ -279,20 +279,20 @@ for i in range(len(list_of_orders_oot)):
     sigma_norm = (sigma.T/meanflux).T
     meanspec = np.nanmean(order_norm,axis=0)
     meanspecs.append(meanspec)
-    
+
     order_clean = order_norm/meanspec
     sigma_clean = sigma_norm/meanspec
-    
+
     #I'm also going to set NaNs to 1.0 and then set sigma to infinite there.
     sigma_clean[np.isfinite(order_clean)==False]=np.inf
     order_clean[np.isfinite(order_clean)==False]=1.0
-    
+
     list_of_res.append(order_clean)
     list_of_res_e.append(sigma_clean)
-    
-    
+
+
 if not batch:
-    stdev = np.nanmedian(list_of_res_e[oi])    
+    stdev = np.nanmedian(list_of_res_e[oi])
 
     plt.figure(figsize=(14,5))
     plt.imshow(list_of_res[oi],aspect='auto',vmin=1-3*stdev,vmax=1+3*stdev)
@@ -300,7 +300,7 @@ if not batch:
     plt.ylabel('Exp')
     plt.tight_layout()
     plt.show()
-    
+
     plt.figure(figsize=(14,5))
     plt.imshow(list_of_res_e[oi],aspect='auto')
     plt.title(f'Normalised uncertainties of order # {oi}')
@@ -315,7 +315,7 @@ if not batch:
     fit = np.polyfit(xfit, list_of_res[oi][expfit], 1,w = 1/list_of_res_e[oi][expfit])
     plt.figure(figsize=(14,5))
     plt.plot(xfit,list_of_res[oi][expfit])
-    plt.plot(xfit,np.poly1d(fit)(xfit))   
+    plt.plot(xfit,np.poly1d(fit)(xfit))
     plt.title('Fitting residuals with a 1st-order polynomial seems like a good idea')
     plt.tight_layout()
     plt.show()
@@ -336,10 +336,10 @@ for i in range(len(list_of_res)):
 
     for j in range(len(order)):
         polyfilter[j] = np.poly1d(fit2d[j])(xfit)
-    list_of_filters.append(polyfilter) 
+    list_of_filters.append(polyfilter)
     list_of_res_clean.append(list_of_res[i]/polyfilter)
     list_of_res_clean_e.append(list_of_res_e[i]/polyfilter)
-  
+
 
 if not batch:
     stdev = np.nanmedian(list_of_res_e[oi])
@@ -386,7 +386,7 @@ if not batch:
 
 
 # <br><br><br><br>
-# 
+#
 # Now we have the data, with wavelengths, we can go back to the opacities.
 
 # In[8]:
@@ -403,9 +403,9 @@ for i in list(S.keys()):
                                                        oversampling=1.0,minmax=[min_wl,max_wl]) # The intermediate wavelength grid.
                                                         #Index it from 1 onwards because the first value is np.inf.
     S[i].kappa_i = copy.deepcopy(jnp.array(kappa_i))
-    
-wli = jnp.array(copy.deepcopy(wli))    
-    
+
+wli = jnp.array(copy.deepcopy(wli))
+
 if not batch:
     plt.figure(figsize=(12,5))
 
@@ -470,7 +470,7 @@ x_kernel = (jnp.arange(k_size)-(k_size-1)/2)*dv #This places 0 directly in the m
 # x_kernel_b = x_kernel.tobytes()
 
 
-# ### Define a down-scoped version of the model. 
+# ### Define a down-scoped version of the model.
 # This has no 2D-ness at the moment. Orbital phases are passed but ignored. The only velocities are the linewidth and the v_sys (shfit).
 
 # In[21]:
@@ -486,34 +486,34 @@ def model_downscoped_jax(p,wl,wlk,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,
 #     filters = np.reshape(np.frombuffer(filters_B),(nexp,nwld))
 #     x_kernel = np.frombuffer(x_kernel_B)
 #     phase = np.frombuffer(phase_B)
-    
-    
+
+
     T = p[0]
     chi_fe = 10**p[1]
     logratios = jnp.array(p[2:n_species+1]) #Add a zero for Fe itself. Is this going to mess up autodif?
     logk0 = p[n_species+1]
-    c0 = p[n_species+2] #Constant offset to ensure continuum-degeneracy despite filtering. 
+    c0 = p[n_species+2] #Constant offset to ensure continuum-degeneracy despite filtering.
     lw = p[n_species+3]
     vsys = p[n_species+4]
     Kp = p[n_species+5]
 
-    
+
     #Then we compute kappa:
-    chi_i = chi_fe * 10 ** logratios 
+    chi_i = chi_fe * 10 ** logratios
     K = chi_fe * kappa_grid[0] + jnp.dot(chi_i,kappa_grid[1:]) + 10**logk0
-    
+
     #Then we do the magic:
     H = k*T/m/g
     R = R0 + H*(gamma+jnp.log(P0 * K / g * jnp.sqrt(2*np.pi*R0/H) ) )
     RT = c0-R**2 / Rs**2
-    
+
     #Then we convolve:
     kernel = jnp.exp(-0.5 * x_kernel**2 / lw**2)
     RT_b = jnp.convolve(RT,kernel/jnp.sum(kernel),mode='same')
-    
+
     #Then we populate the 2D time series:
     rvp = jnp.sin(phase*2*np.pi)*Kp + vsys #Radial velocity of the planet as a function of the orbital phase.
-    
+
 #     rvp=vsys
     shifted_wl = jnp.outer(1-rvp/c,wl)#This populates a 2D matrix containing a row of shifted wavelengths for each of the spectra.
 #     shifted_wl = (1-vsys/c) * wl
@@ -529,7 +529,7 @@ def model_downscoped_jax(p,wl,wlk,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,
 true_p = [2500.0,-4.0,-1.0,-2.0,-2.0,1.0,4.0,20.0,150.0]
 
 # phases_b = np.array([-0.05,0.05]).tobytes()
-phase = jnp.array([-0.75,-0.05,-0.025,0,0.025,0.05,0.75])
+phase = jnp.array([-0.1,-0.75,-0.05,-0.025,0,0.025,0.05,0.75,0.1])
 true_downscoped_model = model_downscoped_jax(true_p,wld,wli,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,Rs**2,n_species)
 
 
@@ -577,27 +577,27 @@ print(true_p)
 
 
 def numpyro_model():
-    
+
     T_prior = numpyro.sample('T', dist.Uniform(low=1500, high=3500))
-    
+
     chi_fe_prior = numpyro.sample(
        'log($\chi_{Fe}$)', dist.Uniform(low=-5.0, high=-3.0))
- 
+
     chi_ratio_priors = []#[-1.0,-2.0]
     for i in range(1,len(labels)):
         chi_ratio_priors.append(numpyro.sample('log($\chi_{'+labels[i]+'}$ / $\chi_{Fe}$)', dist.Uniform(low=-3.5, high=-0.5)))
-    
+
 
     k0_prior = numpyro.sample('log($\kappa_0$)', dist.Uniform(low=-4.0, high=-1.0))
 
     c_prior = numpyro.sample('c0', dist.Uniform(low=0.998, high=1.002))
-    
+
     lw_prior = numpyro.sample('lw', dist.Uniform(low=2, high=8))
     vsys_prior = numpyro.sample('$v_{sys}$', dist.Uniform(low=16, high=24))
     Kp_prior = numpyro.sample('$K_p$', dist.Uniform(low=130, high=170))
-    
+
     priors = [T_prior,chi_fe_prior]+chi_ratio_priors+[k0_prior,c_prior,lw_prior,vsys_prior,Kp_prior]
-    
+
     # Normally distributed likelihood
     numpyro.sample("obs", dist.Normal(loc=model_downscoped_jax(priors,wld[100:-100],wli,kappa_grid,
                                                        x_kernel,phase,c,gamma,k,m,g,P0,R0,
@@ -605,7 +605,7 @@ def numpyro_model():
                                       scale=DATA_E[:,100:-100]), obs=DATA[:,100:-100])
     #Here I am throwing away edges to make 100% that there are no edge effects due to the convolution or due to the interpolation.
 
-    
+
 from jax.random import PRNGKey, split
 import arviz
 from corner import corner
@@ -616,15 +616,15 @@ rng_keys = split(PRNGKey(rng_seed),cpu_cores
 # Define a sampler, using here the No U-Turn Sampler (NUTS)
 # with a dense mass matrix:
 sampler = NUTS(
-    numpyro_model, 
+    numpyro_model,
     dense_mass=True
 )
 
-# Monte Carlo sampling for a number of steps and parallel chains: 
+# Monte Carlo sampling for a number of steps and parallel chains:
 mcmc = MCMC(
-    sampler, 
-    num_warmup=2, 
-    num_samples=4, 
+    sampler,
+    num_warmup=1000,
+    num_samples=1500, 
     num_chains=cpu_cores
 )
 
@@ -644,11 +644,11 @@ if not batch:
 
     result = arviz.from_numpyro(mcmc)
 
-    truths = {'T': true_p[0], 
-               'log($\chi_{Fe}$)': true_p[1], 
+    truths = {'T': true_p[0],
+               'log($\chi_{Fe}$)': true_p[1],
               'log($\chi_{Ti}$ / $\chi_{Fe}$)' : true_p[2],
               'log($\chi_{V}$ / $\chi_{Fe}$)' : true_p[3],
-              'log($\kappa_0$)': true_p[4], 
+              'log($\kappa_0$)': true_p[4],
               'c0': true_p[5],
               'lw': true_p[6],
               '$v_{sys}$': true_p[7],
@@ -656,8 +656,8 @@ if not batch:
              }
 
     corner(
-        result, 
-        quiet=True, 
+        result,
+        quiet=True,
         truths=truths
     );
 
@@ -681,7 +681,3 @@ if not batch:
 
 
 # In[ ]:
-
-
-
-
