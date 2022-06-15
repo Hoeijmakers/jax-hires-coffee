@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[3]:
+# In[40]:
 
 
 batch = True#Set this to False to enable plotting.
@@ -49,17 +49,18 @@ import astropy.units as u
 from collections import OrderedDict
 
 
-cpu_cores = 6
+cpu_cores = 4
 numpyro.set_host_device_count(cpu_cores)
+num_warmup = 5
+num_samples =20
 
-
-print('starting script')
+print('Starting script')
 
 
 # ### Loading opacities.
 # Opacity functions of various species are located in the `opacity/` folder. We load them using a binary IO script packaged in `tayph`. We save each species in a species object, and keep track of those with a dictionary.
 
-# In[4]:
+# In[41]:
 
 
 class species:#Species
@@ -85,7 +86,7 @@ k_wl = 1e7/k_wn#Wavelength in nm; common to all the opacity functions.
 
 # To make a good choice about what to interpolate this onto, we first load in the data. This is copied out of tayph. It's going to prep our hires data for us. It reads spectral orders and wavelengths from file, and generates uncertainties. We also do velocity correction. This is all data preparation.
 
-# In[5]:
+# In[42]:
 
 
 dp = ut.check_path('data/KELT-9/night1/',exists=True)#This follows the file structure of tayph.
@@ -221,7 +222,7 @@ for i in range(len(list_of_wls)):
     
 
 
-# In[6]:
+# In[43]:
 
 
 order_start = 0
@@ -261,7 +262,7 @@ phase = np.linspace(-0.05,0.05,n_exp)#This will be used later to shift the model
 print(min_wl,max_wl)
 
 
-# In[7]:
+# In[44]:
 
 
 
@@ -321,7 +322,7 @@ if not batch:
     plt.show()
 
 
-# In[8]:
+# In[45]:
 
 
 list_of_filters = []
@@ -360,7 +361,7 @@ if not batch:
     plt.show()
 
 
-# In[9]:
+# In[46]:
 
 
 fxd = jnp.hstack(list_of_res_clean) #This is the data.
@@ -389,7 +390,7 @@ if not batch:
 # 
 # Now we have the data, with wavelengths, we can go back to the opacities.
 
-# In[10]:
+# In[47]:
 
 
 #We are going to bracket the minimum and maximum wavelengths of the intermediate wavelength array by 500 km/s in velocity.
@@ -422,7 +423,7 @@ if not batch:
 
 # ### Defining the planet
 
-# In[11]:
+# In[48]:
 
 
 gamma = 0.57721
@@ -443,7 +444,7 @@ c = const.c.to('km/s').value
 
 # Prepare all the inputs for the jax function
 
-# In[12]:
+# In[49]:
 
 
 nwli = len(wli)
@@ -473,7 +474,7 @@ x_kernel = (jnp.arange(k_size)-(k_size-1)/2)*dv #This places 0 directly in the m
 # ### Define the model. 
 # 
 
-# In[13]:
+# In[50]:
 
 
 @partial(jit, static_argnums=(6,7,8,9,10,11,12,13,14))
@@ -512,14 +513,14 @@ def model_jax(p,wl,wlk,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,Rs2,n_speci
     return(spec2D)
 
 
-# In[14]:
+# In[51]:
 
 
 true_p = [2500.0,-4.0,-1.0,-2.0,-2.0,1.0,4.0,20.0,150.0]
 
 # phases_b = np.array([-0.05,0.05]).tobytes()
 phase = jnp.array([-0.1,-0.75,-0.05,-0.025,0,0.025,0.05,0.75,0.1])
-true_downscoped_model = model_downscoped_jax(true_p,wld,wli,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,Rs**2,n_species)
+true_downscoped_model = model_jax(true_p,wld,wli,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,Rs**2,n_species)
 
 
 
@@ -550,24 +551,18 @@ if not batch:
 N=50
 t1=ut.start()
 for i in range(N):
-    true_downscoped_model = model_downscoped_jax(true_p,wld,wli,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,Rs**2,n_species)
+    true_downscoped_model = model_jax(true_p,wld,wli,kappa_grid,x_kernel,phase,c,gamma,k,m,g,P0,R0,Rs**2,n_species)
 t2 = ut.end(t1,silent=True)/N
 print(f'Elapsed time per JAX model: {np.round(t2*1000,3)} ms')
 
 
-# In[15]:
+# In[52]:
 
 
 print(true_p)
 
 
-# In[ ]:
-
-
-
-
-
-# In[16]:
+# In[53]:
 
 
 def numpyro_model(*args):
@@ -602,7 +597,7 @@ def numpyro_model(*args):
     
 
 
-# In[8]:
+# In[55]:
 
 
 
@@ -624,26 +619,32 @@ sampler = NUTS(
 )
 
 # Monte Carlo sampling for a number of steps and parallel chains: 
+
+
+
 mcmc = MCMC(
     sampler, 
-    num_warmup=500, 
-    num_samples=750, 
+    num_warmup=num_warmup, 
+    num_samples=num_samples, 
     num_chains=cpu_cores
 )
 
+print(f'Starting the MCMC with {cpu_cores} chains, {num_warmup} warmup samples and {num_samples} samples.')
+
 # Run the MCMC
-mcmc.run(rng_keys,priors,wld[100:-100],wli,kappa_grid, x_kernel,phase,c,gamma,k,m,g,P0,R0, Rs**2,n_species)
+mcmc.run(rng_keys,wld[100:-100],wli,kappa_grid, x_kernel,phase,c,gamma,k,m,g,P0,R0, Rs**2,n_species)
 
 with open('MCMC-result.pkl','wb') as f:
         pickle.dump(mcmc, f, pickle.HIGHEST_PROTOCOL)
 mcmc.print_summary()
 
 
-# In[19]:
+# In[59]:
 
 
 #Run the first cell if you haven't already done so.
 import pickle5 as pickle
+
 if not batch:
     with open('MCMC-result.pkl', 'rb') as inp:
         mcmc = pickle.load(inp)
@@ -668,19 +669,19 @@ if not batch:
     );
 
 
-# In[27]:
+# In[ ]:
 
 
 
 
 
-# In[17]:
+# In[ ]:
 
 
 
 
 
-# In[20]:
+# In[ ]:
 
 
 
